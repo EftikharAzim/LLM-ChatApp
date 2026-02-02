@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.azime.aitestapp.tools.ToolRegistry
 import com.azime.aitestapp.ui.theme.AITestAppTheme
 
 /**
@@ -23,6 +24,7 @@ import com.azime.aitestapp.ui.theme.AITestAppTheme
  * ```
  * MainActivity
  *     ├── Creates PromptService (singleton for model management)
+ *     ├── Creates ToolRegistry (for agentic tool invocations)
  *     ├── Creates ChatViewModel (via ViewModelProvider)
  *     └── Sets Compose content
  *            └── ChatScreen (observes ViewModel state)
@@ -31,28 +33,27 @@ import com.azime.aitestapp.ui.theme.AITestAppTheme
  * ## Lifecycle Considerations:
  *
  * - PromptService is tied to Activity lifecycle (lazy init)
+ * - ToolRegistry requires Context for device APIs (battery, etc.)
  * - ChatViewModel survives configuration changes
  * - Model stays loaded in memory across rotations
- *
- * ## Why Lazy PromptService?
- *
- * The ML Kit model is expensive to load (~500MB-1GB RAM). By using lazy
- * initialization, we delay loading until actually needed and ensure we
- * only have one instance.
  */
 class MainActivity : ComponentActivity() {
 
     // Lazy initialization of the prompt service
-    // This delays model loading until first access
     private val promptService by lazy { 
         PromptService() 
     }
 
-    // ViewModel with custom factory to inject PromptService
+    // Lazy initialization of the tool registry (for battery, etc.)
+    private val toolRegistry by lazy {
+        ToolRegistry(applicationContext)
+    }
+
+    // ViewModel with custom factory to inject PromptService and ToolRegistry
     private val viewModel: ChatViewModel by lazy {
         val factory = viewModelFactory {
             initializer {
-                ChatViewModel(application, promptService)
+                ChatViewModel(application, promptService, toolRegistry)
             }
         }
         ViewModelProvider(this, factory)[ChatViewModel::class.java]

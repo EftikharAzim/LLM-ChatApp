@@ -4,6 +4,8 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.azime.aitestapp.tools.ToolRegistry
+import com.azime.aitestapp.tools.ToolResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,7 +54,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  */
 class ChatViewModel(
     application: Application, 
-    private val promptService: PromptService
+    private val promptService: PromptService,
+    private val toolRegistry: ToolRegistry
 ) : AndroidViewModel(application) {
 
     companion object {
@@ -198,6 +201,13 @@ class ChatViewModel(
 
         currentGenerationJob = viewModelScope.launch {
             try {
+                // Check for tool invocations (e.g., battery status)
+                val toolResult = toolRegistry.processMessage(userMessage)
+                val toolContext = toolResult?.let { result ->
+                    Log.d(TAG, "Tool invoked, result: $result")
+                    toolRegistry.buildToolContext(result)
+                }
+
                 // Get conversation context (last N messages)
                 val context = _messages.value
                     .filter { it.role != ChatRole.SYSTEM }
@@ -214,9 +224,16 @@ class ChatViewModel(
                 )
                 _messages.value = _messages.value + streamingMessage
 
+                // Build enhanced prompt with tool context if available
+                val enhancedMessage = if (toolContext != null) {
+                    "$toolContext\n\nUser asked: $userMessage\n\nPlease respond to the user's question using the tool result above."
+                } else {
+                    userMessage
+                }
+
                 // Collect streaming response with timeout
                 val result = withTimeoutOrNull(INFERENCE_TIMEOUT_MS) {
-                    promptService.generateResponse(userMessage, context)
+                    promptService.generateResponse(enhancedMessage, context)
                         .onStart {
                             Log.d(TAG, "Stream started")
                             _uiState.value = ChatUiState.Generating("")
