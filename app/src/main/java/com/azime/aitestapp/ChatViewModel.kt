@@ -4,7 +4,9 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.azime.aitestapp.tools.FileCategory
 import com.azime.aitestapp.tools.FunctionCallParser
+import com.azime.aitestapp.tools.FunctionSchemas
 import com.azime.aitestapp.tools.ToolRegistry
 import com.azime.aitestapp.tools.ToolResult
 import kotlinx.coroutines.Job
@@ -202,9 +204,16 @@ class ChatViewModel(
 
         currentGenerationJob = viewModelScope.launch {
             try {
-                // Get conversation context (last N messages)
-                // Note: Fresh context per query as per design - no tool context injection
-                // LLM will generate JSON function calls which are parsed and executed after streaming
+                // Check for search intent using keyword detection
+                val searchCategory = FunctionSchemas.detectSearchIntent(userMessage)
+                
+                if (searchCategory != null) {
+                    // Execute search tool directly - no LLM needed
+                    executeSearchTool(searchCategory)
+                    return@launch
+                }
+
+                // No tool needed - proceed with normal LLM generation
                 val context = _messages.value
                     .filter { it.role != ChatRole.SYSTEM }
                     .takeLast(MAX_CONTEXT_MESSAGES)
@@ -288,7 +297,6 @@ class ChatViewModel(
 
     /**
      * Finalize the AI response after streaming completes.
-     * Shows the raw JSON output without executing the function call.
      */
     private fun finalizeResponse() {
         val rawContent = tokenBuffer.toString().ifEmpty { 
@@ -296,10 +304,49 @@ class ChatViewModel(
         }
 
         Log.d(TAG, "Finalizing response: ${rawContent.take(50)}... (${tokenCount} tokens)")
-
-        // Just display the raw output (JSON or otherwise)
-        // Function execution is disabled - showing JSON only for verification
         updateFinalMessage(rawContent)
+    }
+
+    /**
+     * Execute search tool based on detected file category.
+     */
+    private suspend fun executeSearchTool(category: FileCategory) {
+        // Add placeholder message
+        val streamingMessage = ChatMessage(
+            content = "Searching for ${category.displayName}...",
+            role = ChatRole.ASSISTANT,
+            isStreaming = true
+        )
+        _messages.value = _messages.value + streamingMessage
+        _uiState.value = ChatUiState.Generating("Searching...")
+
+        try {
+            // Find the search tool and execute it
+            val tool = toolRegistry.getAllTools().find { it.name == "create_search_ms_query" }
+            
+            val result = if (tool != null) {
+                val params = mapOf(
+                    "displayName" to category.displayName,
+                    "kind" to category.name.lowercase(),
+                    "location" to "S:\\"
+                )
+                tool.execute(params)
+            } else {
+                ToolResult.Error("Search tool not found")
+            }
+
+            val finalContent = when (result) {
+                is ToolResult.Success -> result.data
+                is ToolResult.Error -> "Error: ${result.message}"
+            }
+
+            Log.d(TAG, "Search tool result: $finalContent")
+            updateFinalMessage(finalContent)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error executing search tool", e)
+            updateFinalMessage("Error: ${e.message}")
+        }
     }
 
     /**
