@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.azime.aitestapp.tools.FunctionCallParser
 import com.azime.aitestapp.tools.ToolRegistry
 import com.azime.aitestapp.tools.ToolResult
 import kotlinx.coroutines.Job
@@ -201,14 +202,9 @@ class ChatViewModel(
 
         currentGenerationJob = viewModelScope.launch {
             try {
-                // Check for tool invocations (e.g., battery status)
-                val toolResult = toolRegistry.processMessage(userMessage)
-                val toolContext = toolResult?.let { result ->
-                    Log.d(TAG, "Tool invoked, result: $result")
-                    toolRegistry.buildToolContext(result)
-                }
-
                 // Get conversation context (last N messages)
+                // Note: Fresh context per query as per design - no tool context injection
+                // LLM will generate JSON function calls which are parsed and executed after streaming
                 val context = _messages.value
                     .filter { it.role != ChatRole.SYSTEM }
                     .takeLast(MAX_CONTEXT_MESSAGES)
@@ -224,16 +220,9 @@ class ChatViewModel(
                 )
                 _messages.value = _messages.value + streamingMessage
 
-                // Build enhanced prompt with tool context if available
-                val enhancedMessage = if (toolContext != null) {
-                    "$toolContext\n\nUser asked: $userMessage\n\nPlease respond to the user's question using the tool result above."
-                } else {
-                    userMessage
-                }
-
                 // Collect streaming response with timeout
                 val result = withTimeoutOrNull(INFERENCE_TIMEOUT_MS) {
-                    promptService.generateResponse(enhancedMessage, context)
+                    promptService.generateResponse(userMessage, context)
                         .onStart {
                             Log.d(TAG, "Stream started")
                             _uiState.value = ChatUiState.Generating("")
@@ -299,21 +288,74 @@ class ChatViewModel(
 
     /**
      * Finalize the AI response after streaming completes.
+     * Checks for JSON function calls and executes them.
      */
     private fun finalizeResponse() {
-        val finalContent = tokenBuffer.toString().ifEmpty { 
+        val rawContent = tokenBuffer.toString().ifEmpty { 
             PromptService.FALLBACK_RESPONSE 
         }
 
-        Log.d(TAG, "Finalizing response: ${finalContent.take(50)}... (${tokenCount} tokens)")
+        Log.d(TAG, "Finalizing response: ${rawContent.take(50)}... (${tokenCount} tokens)")
 
+        // Check for function call in the response
+        val functionCall = FunctionCallParser.parse(rawContent)
+        
+        if (functionCall != null) {
+            Log.d(TAG, "Detected function call: ${functionCall.functionName}")
+            // Execute the function call asynchronously
+            executeFunctionCall(functionCall)
+        } else {
+            // No function call, just show the response as-is
+            updateFinalMessage(rawContent)
+        }
+    }
+
+    /**
+     * Execute a parsed function call and update the message with the result.
+     */
+    private fun executeFunctionCall(functionCall: FunctionCallParser.FunctionCall) {
+        viewModelScope.launch {
+            try {
+                // Show processing state
+                updateStreamingMessage("Processing ${functionCall.functionName}...")
+                
+                // Find and execute the tool
+                val tool = toolRegistry.getAllTools().find { it.name == functionCall.functionName }
+                
+                val result = if (tool != null) {
+                    val params = functionCall.parameters.mapValues { it.value ?: "" }
+                    tool.execute(params)
+                } else {
+                    ToolResult.Error("Unknown function: ${functionCall.functionName}")
+                }
+                
+                // Update message with result
+                val finalContent = when (result) {
+                    is ToolResult.Success -> result.data
+                    is ToolResult.Error -> "Error: ${result.message}"
+                }
+                
+                Log.d(TAG, "Function call result: $finalContent")
+                updateFinalMessage(finalContent)
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error executing function call", e)
+                updateFinalMessage("Error executing function: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Update the final message content (non-streaming).
+     */
+    private fun updateFinalMessage(content: String) {
         val currentMessages = _messages.value.toMutableList()
         if (currentMessages.isNotEmpty()) {
             val lastIndex = currentMessages.lastIndex
             val lastMessage = currentMessages[lastIndex]
             if (lastMessage.role == ChatRole.ASSISTANT) {
                 currentMessages[lastIndex] = lastMessage.copy(
-                    content = finalContent,
+                    content = content,
                     isStreaming = false
                 )
                 _messages.value = currentMessages

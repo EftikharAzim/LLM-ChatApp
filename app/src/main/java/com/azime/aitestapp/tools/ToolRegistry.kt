@@ -118,9 +118,9 @@ class ToolRegistry(context: Context) {
     fun buildToolContext(toolResult: ToolResult): String {
         return when (toolResult) {
             is ToolResult.Success -> """
-                |[TOOL RESULT]
+                |[SEARCH LINK - Include this EXACTLY in your response]
                 |${toolResult.data}
-                |[END TOOL RESULT]
+                |[END SEARCH LINK]
             """.trimMargin()
             
             is ToolResult.Error -> """

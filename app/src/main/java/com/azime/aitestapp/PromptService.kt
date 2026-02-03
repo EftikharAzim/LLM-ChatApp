@@ -47,12 +47,6 @@ class PromptService {
         
         /** Fallback response when inference fails */
         const val FALLBACK_RESPONSE = "I'm having trouble responding right now. Please try again."
-        
-        /** System prompt that defines the AI's behavior */
-        private const val SYSTEM_PROMPT = """You are a helpful, friendly AI assistant running on-device. 
-You provide concise, accurate responses. 
-Keep responses brief but helpful.
-If you don't know something, say so honestly."""
     }
 
     // Model status exposed to UI for showing download progress, errors, etc.
@@ -243,8 +237,8 @@ If you don't know something, say so honestly."""
     ): String {
         val builder = StringBuilder()
         
-        // Add system prompt
-        builder.append(SYSTEM_PROMPT)
+        // Add function calling system prompt
+        builder.append(com.azime.aitestapp.tools.FunctionSchemas.FUNCTION_CALLING_PROMPT)
         builder.append("\n\n")
         
         // Add conversation history if any
