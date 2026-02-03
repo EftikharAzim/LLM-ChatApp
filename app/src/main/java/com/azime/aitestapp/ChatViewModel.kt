@@ -288,7 +288,7 @@ class ChatViewModel(
 
     /**
      * Finalize the AI response after streaming completes.
-     * Checks for JSON function calls and executes them.
+     * Shows the raw JSON output without executing the function call.
      */
     private fun finalizeResponse() {
         val rawContent = tokenBuffer.toString().ifEmpty { 
@@ -297,17 +297,9 @@ class ChatViewModel(
 
         Log.d(TAG, "Finalizing response: ${rawContent.take(50)}... (${tokenCount} tokens)")
 
-        // Check for function call in the response
-        val functionCall = FunctionCallParser.parse(rawContent)
-        
-        if (functionCall != null) {
-            Log.d(TAG, "Detected function call: ${functionCall.functionName}")
-            // Execute the function call asynchronously
-            executeFunctionCall(functionCall)
-        } else {
-            // No function call, just show the response as-is
-            updateFinalMessage(rawContent)
-        }
+        // Just display the raw output (JSON or otherwise)
+        // Function execution is disabled - showing JSON only for verification
+        updateFinalMessage(rawContent)
     }
 
     /**
