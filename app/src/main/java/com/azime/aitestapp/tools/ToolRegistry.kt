@@ -41,6 +41,7 @@ class ToolRegistry(context: Context) {
     init {
         // Register all available tools
         registerTool(BatteryTool(context))
+        registerTool(SearchMsTool())
         
         Log.d(TAG, "Registered ${tools.size} tools: ${tools.map { it.name }}")
     }
@@ -88,10 +89,27 @@ class ToolRegistry(context: Context) {
     /**
      * Detect, execute, and return tool result if applicable.
      * Returns null if no tool was triggered.
+     *
+     * For SearchMsTool, we detect the file category from the user message
+     * and pass it as a parameter.
      */
     suspend fun processMessage(userMessage: String): ToolResult? {
         val tool = detectTool(userMessage) ?: return null
-        return executeTool(tool)
+        
+        // Special handling for SearchMsTool - extract category from message
+        val params = if (tool is SearchMsTool) {
+            val category = tool.detectCategoryFromMessage(userMessage)
+            if (category != null) {
+                mapOf("category" to category.name.lowercase())
+            } else {
+                Log.w(TAG, "SearchMsTool triggered but no category detected in: $userMessage")
+                emptyMap()
+            }
+        } else {
+            emptyMap()
+        }
+        
+        return executeTool(tool, params)
     }
 
     /**
