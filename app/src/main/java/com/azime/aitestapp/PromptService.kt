@@ -199,8 +199,9 @@ class PromptService {
                 Log.v(TAG, "Received chunk: ${text.take(20)}...")
             }
             .catch { e ->
-                Log.e(TAG, "Generation error", e)
-                emit(FALLBACK_RESPONSE)
+                Log.e(TAG, "Generation error: ${e.message}", e)
+                // Emit actual error for debugging instead of generic fallback
+                emit("[Error: ${e.message ?: "Unknown error"}]")
             }
             .flowOn(Dispatchers.IO)
     }
