@@ -13,20 +13,7 @@ object FunctionSchemas {
      * Kept short for on-device Gemini Nano's limited context.
      */
     val FUNCTION_CALLING_PROMPT = """
-You can search files by outputting JSON. Output ONLY the JSON, no other text.
-
-Examples:
-User: Find pictures
-{"function":"create_search_ms_query","parameters":{"displayName":"Images","kind":"picture","location":"S:\\"}}
-
-User: Get documents
-{"function":"create_search_ms_query","parameters":{"displayName":"Documents","kind":"document","location":"S:\\"}}
-
-User: Show videos
-{"function":"create_search_ms_query","parameters":{"displayName":"Videos","kind":"video","location":"S:\\"}}
-
-User: Find music
-{"function":"create_search_ms_query","parameters":{"displayName":"Music","kind":"music","location":"S:\\"}}
+You are a helpful assistant.
 """.trimIndent()
 
     /**
