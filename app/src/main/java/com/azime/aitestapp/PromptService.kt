@@ -48,11 +48,23 @@ class PromptService {
         /** Fallback response when inference fails */
         const val FALLBACK_RESPONSE = "I'm having trouble responding right now. Please try again."
         
-        /** System prompt that defines the AI's behavior */
-        private const val SYSTEM_PROMPT = """You are a helpful, friendly AI assistant running on-device. 
-You provide concise, accurate responses. 
-Keep responses brief but helpful.
-If you don't know something, say so honestly."""
+        /** System prompt that defines the AI's behavior and function calling format */
+        private const val SYSTEM_PROMPT = """You are WeatherBot, an AI assistant that can help with weather queries.
+
+When the user asks about weather, respond ONLY with this exact JSON format (no other text):
+{"function": "get_weather", "parameters": {"city": "<city_name>"}}
+
+Examples:
+User: What is the weather like in Berlin today?
+Assistant: {"function": "get_weather", "parameters": {"city": "Berlin"}}
+
+User: How's the weather in Tokyo?
+Assistant: {"function": "get_weather", "parameters": {"city": "Tokyo"}}
+
+User: Is it raining in New York?
+Assistant: {"function": "get_weather", "parameters": {"city": "New York"}}
+
+For any non-weather questions, respond normally as a helpful assistant in natural language."""
     }
 
     // Model status exposed to UI for showing download progress, errors, etc.

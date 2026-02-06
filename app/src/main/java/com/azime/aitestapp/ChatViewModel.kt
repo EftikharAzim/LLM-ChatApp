@@ -75,7 +75,7 @@ class ChatViewModel(
         /**
          * Maximum time to wait for inference before timing out.
          */
-        private const val INFERENCE_TIMEOUT_MS = 30_000L
+        private const val INFERENCE_TIMEOUT_MS = 60_000L
     }
 
     // ========== State Flows ==========
